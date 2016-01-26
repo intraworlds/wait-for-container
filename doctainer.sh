@@ -61,7 +61,7 @@ etcd_exist() {
 # @param $2 how long to wait, default=0s (forever)
 # @return 0 if service found, 1 for timeout, >=10 for errors
 etcd_wait() {
-    local TIMEOUT=${2:-0} # timeout: default value
+    local -r TIMEOUT=${2:-0} # timeout: default value
 
     etcd_exist
     if [ $? -ne 0 ]; then return 10; fi
@@ -72,7 +72,7 @@ etcd_wait() {
     fi
 
     echo "* checking for service '$1'"
-    local tempfile=$(mktemp -u)
+    local -r tempfile=$(mktemp -u)
     local rslt=''
     # check if the service already exists
     curl -i --silent --output $tempfile $ETCD_URL/v2/keys/service/$1
@@ -93,8 +93,8 @@ etcd_wait() {
     fi
 
     # parse JSON about the service
-    local status=$(echo $rslt | sed -n 's/.*value":"\([a-z]*\).*/\1/p')
-    case $status in
+    local -r status=$(echo ${rslt} | sed -n 's/.*value":"\([a-z]*\).*/\1/p')
+    case ${status} in
         "running") echo "* service '$1': $status"; return 0 ;;
         *) echo "ERR: unknown status: $status" >&2; return 12 ;;
     esac
@@ -106,7 +106,7 @@ etcd_wait() {
 # @param $2 the new state, default=running
 # @return 0 if notifying ok, otherwise >1
 etcd_notify() {
-    local STATE=${2:-running} # state: default value
+    local -r state=${2:-running} # state: default value
 
     etcd_exist
     if [ $? -ne 0 ]; then return 10; fi
@@ -116,8 +116,8 @@ etcd_notify() {
         return 11
     fi
 
-    echo "* service '$1' notified, value=$STATE"
-    local rslt=$(curl -X PUT $ETCD_URL/v2/keys/service/$1 -d value="$STATE" 2>/dev/null)
+    echo "* service '$1' notified, value=${state}"
+    curl -X PUT $ETCD_URL/v2/keys/service/$1 -d value=${state} --output /dev/null 2>/dev/null
 }
 
 

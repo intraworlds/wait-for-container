@@ -22,6 +22,7 @@
 set -o errexit
 
 ETCD_URL="${ETCD_URL:-http://127.0.0.1:4001}"
+declare -xr temp_file=$(mktemp -u)
 
 
 # The usage function.
@@ -35,9 +36,14 @@ usage() {
 [[ $# -eq 0 ]] && usage
 
 
-# # TODO: set up a trap to delete the temp dir when the script exits
-# unset temp_dir
-# trap '[[ -d "$temp_dir" ]] && rm -rf "$temp_dir"' EXIT
+# Prints out error messages along with other status information.
+err() {
+  echo "[$(date +'%d-%m-%YT%H:%M:%S%z')]: $@" >&2
+}
+
+
+# Sets up a trap to delete the temp file when the script exits.
+trap '[[ -f "$temp_file" ]] && rm -f "$temp_file"' EXIT
 
 
 # Checks whether the engine is running.
@@ -45,11 +51,11 @@ usage() {
 etcd_exist() {
     local -r rslt=$(curl -L $ETCD_URL/version 2>/dev/null)
     if [[ -z "$rslt" ]]; then # no response
-        echo "ERR: no response (etcd not running?)" >&2
+        err "no response (etcd not running?)"
         return 2
     fi
     if ! grep -q "etcdserver" <<<$rslt; then # bad response
-        echo "ERR: bad response" >&2
+        err "bad response"
         return 3
     fi
     echo "* etcd engine found and working: ${ETCD_URL}"
@@ -67,22 +73,21 @@ etcd_wait() {
     if [ $? -ne 0 ]; then return 10; fi
 
     if [ -z "$1" ]; then
-        echo "ERR: missing service name" >&2
+        err "missing service name"
         return 11
     fi
 
     echo "* checking for service '$1'"
-    local -r tempfile=$(mktemp -u)
     local rslt=''
     # check if the service already exists
-    curl -i --silent --output $tempfile $ETCD_URL/v2/keys/service/$1
-    if ! grep -q "errorCode" $tempfile; then # no error, the service is here
+    curl -i --silent --output $temp_file $ETCD_URL/v2/keys/service/$1
+    if ! grep -q "errorCode" $temp_file; then # no error, the service is here
         echo "* service '$1' already there"
-        rslt=$(grep 'key.*value' $tempfile)
+        rslt=$(grep 'key.*value' $temp_file)
     else # we need to wait for the service
         echo "* service '$1' not there -> wait for $TIMEOUT second(s)..."
         # extract the Etcd-Index from header
-        local etcdIndex=$(grep '^X-Etcd-Index' $tempfile | awk '{print $2}')
+        local etcdIndex=$(grep '^X-Etcd-Index' $temp_file | awk '{print $2}')
         echo "* etcd event index: $etcdIndex"
 
         rslt=$(curl --silent --max-time $TIMEOUT $ETCD_URL/v2/keys/service/$1?wait=true&waitIndex=$etcdIndex)
@@ -96,7 +101,7 @@ etcd_wait() {
     local -r status=$(echo ${rslt} | sed -n 's/.*value":"\([a-z]*\).*/\1/p')
     case ${status} in
         "running") echo "* service '$1': $status"; return 0 ;;
-        *) echo "ERR: unknown status: $status" >&2; return 12 ;;
+        *) err "unknown status: $status"; return 12 ;;
     esac
 }
 
@@ -112,7 +117,7 @@ etcd_notify() {
     if [ $? -ne 0 ]; then return 10; fi
 
     if [ -z "$1" ]; then # blank response
-        echo "ERR: missing service name" >&2
+        err "missing service name"
         return 11
     fi
 
@@ -133,7 +138,7 @@ main() {
             etcd_wait $@;
             ;;
         *)
-            echo "ERR: unknown command" >&2
+            err "unknown command"
             ;;
     esac
 }

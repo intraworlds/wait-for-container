@@ -1,4 +1,9 @@
-# wait-for-container
+               _ _         __                                 _        _
+__      ____ _(_) |_      / _| ___  _ __       ___ ___  _ __ | |_ __ _(_)_ __   ___ _ __
+\ \ /\ / / _` | | __|____| |_ / _ \| '__|____ / __/ _ \| '_ \| __/ _` | | '_ \ / _ \ '__|
+ \ V  V / (_| | | ||_____|  _| (_) | | |_____| (_| (_) | | | | || (_| | | | | |  __/ |
+  \_/\_/ \__,_|_|\__|    |_|  \___/|_|        \___\___/|_| |_|\__\__,_|_|_| |_|\___|_|
+
 
 When starting docker containers, even if one service is marked as depending on the second one,
 the first service is started before the initial process of the second container is complete - and

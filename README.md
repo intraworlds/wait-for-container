@@ -11,6 +11,9 @@ it is then unable to connect to the 'still in initialization' service.
 
 This script is based on running etcd server used as discovery/synchronization engine.
 
+## Configuration
+### ETCD_URL
+The `etcd` engine HTTP endpoint for communication. Default value: http://127.0.0.1:4001
 
 ## Examples
 

@@ -17,9 +17,11 @@ This script is based on running etcd server used as discovery/synchronization en
 * wait for service
 
 ```bash
-> ./doctainer.sh wait foo # wait for service 'foo' forever (no timeout)
+> ./doctainer.sh wait foo # wait for service 'foo' in status 'running' forever (no timeout)
 or
-> ./doctainer.sh wait foo 5 # wait for service 'foo' for 5 seconds
+> ./doctainer.sh wait foo -t 2 # wait for service 'foo' in status 'running' for 2 seconds
+or
+> ./doctainer.sh wait foo -s bravo # wait for service 'foo' in status 'bravo' forever
 ```
 
 * fire event about service

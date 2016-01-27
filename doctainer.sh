@@ -6,16 +6,14 @@
 #  * container start synchronization
 # for Docker containers running on multiple host.
 #
-# Copyright 2016 IntraWorlds s.r.o.
-# MIT LICENCE
-#
 # Author:       vaclav.sykora@intraworlds.com
-# Date :        2015-01-20
+# Date:         2015-01-20
+# Licence:      Copyright 2016 IntraWorlds s.r.o. (MIT LICENCE)
 # Dependencies: curl,mktemp,grep,awk,sed,echo
 # Example:
-#   $ etcd_wait foo     # wait for service 'foo'
-#   $ etcd_notify foo   # fire event that service 'foo' is running
-#
+#   $ ./doctainer.sh wait foo           # wait for service 'foo' in status 'running' forever (no timeout)
+#   $ ./doctainer.sh wait foo -t 2      # wait for service 'foo' in status 'running' for 2 seconds
+#   $ ./doctainer.sh wait foo -s bravo  # wait for service 'foo' in status 'bravo' forever
 
 
 # exit the script when a command fails
@@ -27,9 +25,12 @@ declare -xr temp_file=$(mktemp -u)
 
 # The usage function.
 usage() {
-    echo "Usage: $0 command service [options]"
+    echo "Usage: $0 command service <options>"
     echo "  command: notify|wait"
     echo "  service: the service name"
+    echo "  options:"
+    echo "    -t timeout: how long to wait (default: 0=forever)"
+    echo "    -s state: expected state (default: running)"
     exit 1
 }
 # call usage() function if parameters not supplied
@@ -64,33 +65,60 @@ etcd_exist() {
 
 # Checks existing service and wait for it if does not exist right now.
 # @param $1 the service name
-# @param $2 how long to wait, default=0s (forever)
+# @param -t timeout how long to wait, default: 0s (forever)
+# @param -s status to be expected, default: running
 # @return 0 if service found, 1 for timeout, >=10 for errors
 etcd_wait() {
-    local -r TIMEOUT=${2:-0} # timeout: default value
 
     etcd_exist
     if [ $? -ne 0 ]; then return 10; fi
 
+    # get service name
     if [ -z "$1" ]; then
         err "missing service name"
         return 11
     fi
+    local -r service=$1
+    shift
 
-    echo "* checking for service '$1'"
+    # parse options
+    local timeout='' # how long to wait
+    local estatus='' # expected status
+    while getopts ":t:s:" opt; do
+        case $opt in
+            t)
+                timeout=$OPTARG
+                ;;
+            s)
+                estatus=$OPTARG
+                ;;
+            \?)
+                err "invalid option: -$OPTARG"
+                exit 11
+                ;;
+            :)
+                err "option -$OPTARG requires an argument"
+                exit 11
+                ;;
+        esac
+    done
+    timeout=${timeout:-0}
+    estatus=${estatus:-running}
+
+    echo "* checking for service '${service}'"
     local rslt=''
     # check if the service already exists
-    curl -i --silent --output $temp_file ${etcd_url}/v2/keys/service/$1
+    curl -i --silent --output $temp_file ${etcd_url}/v2/keys/service/${service}
     if ! grep -q "errorCode" $temp_file; then # no error, the service is here
-        echo "* service '$1' already there"
+        echo "* service '${service}' already there"
         rslt=$(grep 'key.*value' $temp_file)
     else # we need to wait for the service
-        echo "* service '$1' not there -> wait for $TIMEOUT second(s)..."
+        echo "* service '${service}' not there -> expected status '${estatus}' in ${timeout} second(s)..."
         # extract the Etcd-Index from header
-        local etcdIndex=$(grep '^X-Etcd-Index' $temp_file | awk '{print $2}')
-        echo "* etcd event index: $etcdIndex"
+        local -r etcd_index=$(grep '^X-Etcd-Index' $temp_file | awk '{print $estatus}')
+        echo "* etcd event index: ${etcd_index}"
 
-        rslt=$(curl --silent --max-time $TIMEOUT ${etcd_url}/v2/keys/service/$1?wait=true&waitIndex=$etcdIndex)
+        rslt=$(curl --silent --max-time ${timeout} ${etcd_url}/v2/keys/service/${service}?wait=true&waitIndex=${etcd_index})
         if [ -z "$rslt" ]; then # blank response -> timeouted
             echo "WARN: timeout"
             return 1
@@ -100,7 +128,7 @@ etcd_wait() {
     # parse JSON about the service
     local -r status=$(echo ${rslt} | sed -n 's/.*value":"\([a-z]*\).*/\1/p')
     case ${status} in
-        "running") echo "* service '$1': $status"; return 0 ;;
+        "running") echo "* service '${service}': ${status}"; return 0 ;;
         *) err "unknown status: $status"; return 12 ;;
     esac
 }

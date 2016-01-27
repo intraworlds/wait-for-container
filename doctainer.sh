@@ -47,7 +47,7 @@ err() {
 trap '[[ -f "$temp_file" ]] && rm -f "$temp_file"' EXIT
 
 
-# Checks whether the engine is running.
+# Checks whether the 'etcd' engine is running.
 # @return 0 if the engine works, otherwise >0
 etcd_exist() {
     local -r rslt=$(curl -L ${etcd_url}/version 2>/dev/null)
@@ -69,7 +69,6 @@ etcd_exist() {
 # @param -s status to be expected, default: running
 # @return 0 if service found, 1 for timeout, >=10 for errors
 etcd_wait() {
-
     etcd_exist
     if [ $? -ne 0 ]; then return 10; fi
 
@@ -115,8 +114,8 @@ etcd_wait() {
     else # we need to wait for the service
         echo "* service '${service}' not there -> expected status '${estatus}' in ${timeout} second(s)..."
         # extract the Etcd-Index from header
-        local -r etcd_index=$(grep '^X-Etcd-Index' $temp_file | awk '{print $estatus}')
-        echo "* etcd event index: ${etcd_index}"
+        local -r etcd_index=$(grep '^X-Etcd-Index' $temp_file | awk '{print $2}' | tr -d '\r' | tr -d '\n')
+        echo "* etcd event index: '${etcd_index}'"
 
         rslt=$(curl --silent --max-time ${timeout} ${etcd_url}/v2/keys/service/${service}?wait=true&waitIndex=${etcd_index})
         if [ -z "$rslt" ]; then # blank response -> timeouted
@@ -158,12 +157,12 @@ etcd_notify() {
 main() {
     case "$1" in
         "notify")
-            shift;
-            etcd_notify $@;
+            shift
+            etcd_notify $@
             ;;
         "wait")
-            shift;
-            etcd_wait $@;
+            shift
+            etcd_wait $@
             ;;
         *)
             err "unknown command"

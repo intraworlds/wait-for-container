@@ -9,7 +9,7 @@
 # Author:       vaclav.sykora@intraworlds.com
 # Date:         2015-01-20
 # Licence:      Copyright 2016 IntraWorlds s.r.o. (MIT LICENCE)
-# Dependencies: curl,mktemp,grep,awk,sed,echo
+# Dependencies: curl,mktemp,grep,awk,sed,tr,echo
 # Example:
 #   $ ./doctainer.sh wait foo           # wait for service 'foo' in status 'running' forever (no timeout)
 #   $ ./doctainer.sh wait foo -t 2      # wait for service 'foo' in status 'running' for 2 seconds
@@ -44,7 +44,7 @@ err() {
 
 
 # Sets up a trap to delete the temp file when the script exits.
-trap '[[ -f "$temp_file" ]] && rm -f "$temp_file"' EXIT
+trap '[[ -f "${temp_file}" ]] && rm -f "${temp_file}"' EXIT
 
 
 # Checks whether the 'etcd' engine is running.
@@ -67,7 +67,10 @@ etcd_exist() {
 # @param $1 the service name
 # @param -t timeout how long to wait, default: 0s (forever)
 # @param -s status to be expected, default: running
-# @return 0 if service found, 1 for timeout, >=10 for errors
+# @return 0 if service found
+#         1 for timeout
+#         2 if unexpected status received
+#         >=10 for errors
 etcd_wait() {
     etcd_exist
     if [ $? -ne 0 ]; then return 10; fi
@@ -104,21 +107,21 @@ etcd_wait() {
     timeout=${timeout:-0}
     estatus=${estatus:-running}
 
-    echo "* checking for service '${service}'"
+    echo "* checking for service '${service}' in status '${estatus}'"
     local rslt=''
     # check if the service already exists
-    curl -i --silent --output $temp_file ${etcd_url}/v2/keys/service/${service}
-    if ! grep -q "errorCode" $temp_file; then # no error, the service is here
+    curl -i --silent --output ${temp_file} ${etcd_url}/v2/keys/service/${service}
+    if ! grep -q "errorCode" ${temp_file}; then # no error, the service is here
         echo "* service '${service}' already there"
-        rslt=$(grep 'key.*value' $temp_file)
+        rslt=$(grep 'key.*value' ${temp_file})
     else # we need to wait for the service
         echo "* service '${service}' not there -> expected status '${estatus}' in ${timeout} second(s)..."
         # extract the Etcd-Index from header
-        local -r etcd_index=$(grep '^X-Etcd-Index' $temp_file | awk '{print $2}' | tr -d '\r' | tr -d '\n')
+        local -r etcd_index=$(grep '^X-Etcd-Index' ${temp_file} | awk '{print $2}' | tr -d '\r')
         echo "* etcd event index: '${etcd_index}'"
 
         rslt=$(curl --silent --max-time ${timeout} ${etcd_url}/v2/keys/service/${service}?wait=true&waitIndex=${etcd_index})
-        if [ -z "$rslt" ]; then # blank response -> timeouted
+        if [[ -z "$rslt" ]]; then # blank response -> timeouted
             echo "WARN: timeout"
             return 1
         fi
@@ -126,10 +129,13 @@ etcd_wait() {
 
     # parse JSON about the service
     local -r status=$(echo ${rslt} | sed -n 's/.*value":"\([a-z]*\).*/\1/p')
-    case ${status} in
-        "running") echo "* service '${service}': ${status}"; return 0 ;;
-        *) err "unknown status: $status"; return 12 ;;
-    esac
+    if [ "$status" != "$estatus" ]; then
+        err "unexpected status: ${status}"
+        return 2
+    fi
+
+    echo "* status received and OK"
+    return 0
 }
 
 
@@ -168,6 +174,8 @@ main() {
             err "unknown command"
             ;;
     esac
+    # delete the temp file
+    [[ -f "${temp_file}" ]] && rm -f "${temp_file}"
 }
 
 main "$@"

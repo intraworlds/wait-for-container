@@ -141,11 +141,9 @@ etcd_wait() {
 
 # Notifies all waiting clients that a given service is available.
 # @param $1 the service name
-# @param $2 the new state, default=running
+# @param -s status to be fired, default: running
 # @return 0 if notifying ok, otherwise >1
 etcd_notify() {
-    local -r state=${2:-running} # state: default value
-
     etcd_exist
     if [ $? -ne 0 ]; then return 10; fi
 
@@ -153,9 +151,30 @@ etcd_notify() {
         err "missing service name"
         return 11
     fi
+    local -r service=$1
+    shift
 
-    echo "* service '$1' notified, value=${state}"
-    curl -X PUT ${etcd_url}/v2/keys/service/$1 -d value=${state} --output /dev/null 2>/dev/null
+    # parse options
+    local status='' # fired status
+    while getopts ":s:" opt; do
+        case $opt in
+            s)
+                status=$OPTARG
+                ;;
+            \?)
+                err "invalid option: -$OPTARG"
+                exit 11
+                ;;
+            :)
+                err "option -$OPTARG requires an argument"
+                exit 11
+                ;;
+        esac
+    done
+    status=${status:-running}
+
+    echo "* service '${service}' notified, value=${status}"
+    curl -X PUT ${etcd_url}/v2/keys/service/${service} -d value=${status} --output /dev/null 2>/dev/null
 }
 
 

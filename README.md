@@ -32,5 +32,5 @@ or
 ```bash
 > ./doctainer.sh notify foo # service 'foo' is in default status 'running' now
 or
-> ./doctainer.sh notify foo preparing # service 'foo' is in status 'preparing'
+> ./doctainer.sh notify foo -s bravo # service 'foo' is in status 'bravo' now
 ```

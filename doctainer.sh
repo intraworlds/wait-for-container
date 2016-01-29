@@ -11,9 +11,11 @@
 # Licence:      Copyright 2016 IntraWorlds s.r.o. (MIT LICENCE)
 # Dependencies: curl,mktemp,grep,awk,sed,tr,echo
 # Example:
-#   $ ./doctainer.sh wait foo           # wait for service 'foo' in status 'running' forever (no timeout)
-#   $ ./doctainer.sh wait foo -t 2      # wait for service 'foo' in status 'running' for 2 seconds
-#   $ ./doctainer.sh wait foo -s bravo  # wait for service 'foo' in status 'bravo' forever
+#   $ ./doctainer.sh wait foo               # wait for service 'foo' in status 'running' forever (no timeout)
+#   $ ./doctainer.sh wait foo -t 2          # wait for service 'foo' in status 'running' for 2 seconds
+#   $ ./doctainer.sh wait foo -s bravo      # wait for service 'foo' in status 'bravo' forever
+#   $ ./doctainer.sh notify foo             # service 'foo' is in default status 'running' now
+#   $ ./doctainer.sh notify foo -s bravo    # service 'foo' is in status 'bravo' now
 
 
 # exit the script when a command fails
